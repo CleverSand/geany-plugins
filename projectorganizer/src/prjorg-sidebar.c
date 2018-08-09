@@ -361,94 +361,86 @@ static gchar* parent_dir_for_create() {
 	GtkTreeSelection *treesel;
 	GtkTreeModel *model;
 	GtkTreeIter iter, parent;
-	gchar *utf8_path;
+	gchar *path = NULL;
 
 	treesel = gtk_tree_view_get_selection(GTK_TREE_VIEW(s_file_view));
-	if (!gtk_tree_selection_get_selected(treesel, &model, &iter)) {
-		return NULL;
-	}
-	utf8_path = g_path_get_dirname(build_path(&iter));
-	if (!g_file_test(utf8_path, G_FILE_TEST_IS_DIR)) {
-		g_free(utf8_path);
-		if (gtk_tree_model_iter_parent(model, &parent, &iter)) {
-			return NULL;
+	if (gtk_tree_selection_get_selected(treesel, &model, &iter)) {
+		path = build_path(&iter);
+		if (!g_file_test(path, G_FILE_TEST_IS_DIR)) {
+			g_print("%s is not dir\n", path);
+			g_free(path);
+			path = NULL;
+			if (gtk_tree_model_iter_parent(model, &parent, &iter)) {
+				path = build_path(&parent);
+			}		
 		}
-		utf8_path = build_path(&parent);
 	}
-	return utf8_path;
+	return path;
 }
 
 static void on_create_file(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointer user_data)
 {
-	GtkTreeSelection *treesel;
-	GtkTreeModel *model;
-	GtkTreeIter iter, parent;
-	//gchar *name;
+	gchar *dir, *name, *path;
+	int fd;
+	GError *err;
 
-	treesel = gtk_tree_view_get_selection(GTK_TREE_VIEW(s_file_view));
-	if (!gtk_tree_selection_get_selected(treesel, &model, &iter))
+	dir = parent_dir_for_create();
+	if (NULL == dir) {
 		return;
+	}
 
-	if (gtk_tree_model_iter_parent(model, &parent, &iter))
-		return;
+	g_print("Creating file in %s\n", dir);
 
-	//gtk_tree_model_get(model, &iter, FILEVIEW_COLUMN_NAME, &name, -1);
-	//prjorg_project_remove_external_dir(name);
+	name = dialogs_show_input(_("New File"), geany->main_widgets->window, _("Name:"), _("newfile.txt"));
+	if (NULL != name) {
+		path = g_build_path(G_DIR_SEPARATOR_S, dir, name, NULL);
+		g_free(name);
+		g_print("new file: %s", path);
 
-	// TODO: create new file
-	gchar *dir = parent_dir_for_create();
-	gchar *name = g_build_path(G_DIR_SEPARATOR_S, dir, "NewFile___", NULL);
-	g_free(dir);
-
-	int i = 3;
-	size_t l = strlen(name);
-	gboolean created = FALSE;
-	for (i = 3; 0 < i && !created; i--) {
-		name[l-i] = '\0';
-		int fd = g_open(name, O_CREAT|O_EXCL, 0660);
-		created = -1 != fd;
-		if (!created) {
-			name[l-i] = '_';
-		} else {
-			GError *err;
+		fd = g_open(path, O_CREAT|O_EXCL, 0660); // rw-rw----
+		if (-1 != fd) { // created?
 			g_close(fd, &err);
+			prjorg_sidebar_update(TRUE);
+			project_write_config();
+			//TODO: open the new file?
+		} else {
+			dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Cannot create new file %s"), path);
 		}
+		g_free(path);
 	}
-
-	if (!created) {
-		show_message(_("Cannot create new file %s"), name);
-	} else {
-		prjorg_sidebar_update(TRUE);
-		project_write_config();
-
-		// TODO: rename new file
-	}
-
-	g_free(name);
+	g_free(dir);
 }
 
 static void on_create_dir(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointer user_data)
 {
-	GtkTreeSelection *treesel;
-	GtkTreeModel *model;
-	GtkTreeIter iter, parent;
-	gchar *name;
+	gchar *dir, *name, *path;
+	gboolean created;
+	int fd;
+	GError *err;
 
-	treesel = gtk_tree_view_get_selection(GTK_TREE_VIEW(s_file_view));
-	if (!gtk_tree_selection_get_selected(treesel, &model, &iter))
+	dir = parent_dir_for_create();
+	if (NULL == dir) {
 		return;
+	}
 
-	if (gtk_tree_model_iter_parent(model, &parent, &iter))
-		return;
+	g_print("Creating dir in %s\n", dir);
 
-	gtk_tree_model_get(model, &iter, FILEVIEW_COLUMN_NAME, &name, -1);
-	//prjorg_project_remove_external_dir(name);
-	// TODO: create new dir. If the selected item is a dir, as a child
-	// if is a file, as a sibling.
-	prjorg_sidebar_update(TRUE);
-	project_write_config();
+	name = dialogs_show_input(_("New Directory"), geany->main_widgets->window, _("Name:"), _("newdir"));
+	if (NULL != name) {
+		path = g_build_path(G_DIR_SEPARATOR_S, dir, name, NULL);
+		g_free(name);
+		g_print("new dir: %s", path);
 
-	g_free(name);
+		if (0 == g_mkdir_with_parents(path, 0770)) { // created? (rwxrwx---)
+			prjorg_sidebar_update(TRUE);
+			project_write_config();
+			//TODO: select the new dir?
+		} else {
+			dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Cannot create directory %s"), path);
+		}
+		g_free(path);
+	}
+	g_free(dir);
 }
 
 static GtkCellRenderer *get_text_cell(GtkTreeViewColumn *column) {
@@ -519,7 +511,7 @@ static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 	GtkTreeModel *model;
 	GtkTreeIter iter;
 	gchar *name;
-	gchar *utf8_path;
+	gchar *path;
 
 	treesel = gtk_tree_view_get_selection(GTK_TREE_VIEW(s_file_view));
 	if (!gtk_tree_selection_get_selected(treesel, &model, &iter)) {
@@ -530,12 +522,14 @@ static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 
 	if (dialogs_show_question(_("Do you really want to delete '%s'"), name))
 	{
-		utf8_path = build_path(&iter);
-		printf("deleting '%s'\n", utf8_path);
+		path = build_path(&iter);
+		printf("deleting '%s'\n", path);
 
-		// TODO: delete selected path (recursively?)
+		if (0 != g_unlink(path)) {
+			dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Cannot delete file %s"), path);
+		}
 
-		g_free(utf8_path);
+		g_free(path);
 
 		prjorg_sidebar_update(TRUE);
 		project_write_config();
