@@ -415,9 +415,6 @@ static void on_create_file(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gp
 static void on_create_dir(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointer user_data)
 {
 	gchar *dir, *name, *path;
-	gboolean created;
-	int fd;
-	GError *err;
 
 	dir = parent_dir_for_create();
 	if (NULL == dir) {
@@ -445,66 +442,47 @@ static void on_create_dir(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpo
 	g_free(dir);
 }
 
-static GtkCellRenderer *get_text_cell(GtkTreeViewColumn *column) {
-	GList *renderers;
-	GtkCellRenderer *cell;
-
-	renderers  = gtk_cell_layout_get_cells(GTK_CELL_LAYOUT(column));
-	cell = g_list_nth_data(renderers, 1); // TEXT = 1
-	g_list_free(renderers);
-	return cell;
-}
-
-static void start_edit_text(GtkTreeModel *model, GtkTreeIter *iter) {
-	GtkTreeViewColumn *column;
-	GtkCellRenderer *cell;
-
-	GtkTreePath *path;
-
-	column = gtk_tree_view_get_column(GTK_TREE_VIEW(s_file_view), 0);
-	cell = get_text_cell(column);
-	g_object_set(G_OBJECT(cell), "editable", TRUE, NULL);
-
-	path = gtk_tree_model_get_path(GTK_TREE_MODEL(model), iter);
-	gtk_tree_view_set_cursor_on_cell(GTK_TREE_VIEW(s_file_view), path, column, cell, TRUE);
-	gtk_tree_path_free(path);
-}
-
-static void stop_edit_text() {
-	GtkTreeViewColumn *column;
-	GtkCellRenderer *cell;
-
-	column = gtk_tree_view_get_column(GTK_TREE_VIEW(s_file_view), 0);
-	cell = get_text_cell(column);
-	g_object_set(G_OBJECT(cell), "editable", FALSE, NULL);
-}
-
 static void on_rename(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointer user_data)
 {
 	GtkTreeSelection *treesel;
 	GtkTreeModel *model;
-	GtkTreeIter iter;
-	gchar *name;
-	gchar *utf8_path;
+	GtkTreeIter iter, parent;
+	gchar *name, *dir, *newname, *oldpath, *newpath;
+
+	g_print("Renaming");
 
 	treesel = gtk_tree_view_get_selection(GTK_TREE_VIEW(s_file_view));
 	if (!gtk_tree_selection_get_selected(treesel, &model, &iter)) {
 		return;
 	}
+	if (!gtk_tree_model_iter_parent(model, &parent, &iter)) {
+		return;
+	}
+	dir = build_path(&parent);
+	if (NULL == dir) {
+		return;
+	}
 
 	gtk_tree_model_get(model, &iter, FILEVIEW_COLUMN_NAME, &name, -1);
-	//prjorg_project_remove_external_dir(name);
-	// TODO: rename selected file or dir
-	utf8_path = build_path(&iter);
-	printf("renaming '%s' (name '%s')\n", utf8_path, name);
-	g_free(name);
-	g_free(utf8_path);
-
-	start_edit_text(model, &iter);
-
-	//prjorg_sidebar_update(TRUE);
-	//project_write_config();
-
+	if (NULL != name) {
+		newname = dialogs_show_input(_("Rename"), geany->main_widgets->window, _("New name:"), name);
+		if (NULL != newname) {
+			oldpath = g_build_path(G_DIR_SEPARATOR_S, dir, name, NULL);
+			newpath = g_build_path(G_DIR_SEPARATOR_S, dir, newname, NULL);
+			if (0 == g_rename(oldpath, newpath)) {
+				prjorg_project_rescan();
+				prjorg_sidebar_update(TRUE);
+				project_write_config();
+			} else {
+				dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Cannot rename %s to %s"), oldpath, newpath);
+			}
+			g_free(oldpath);
+			g_free(newpath);
+			g_free(newname);
+		}
+		g_free(name);
+	}
+	g_free(dir);
 }
 
 static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointer user_data)
@@ -527,6 +505,8 @@ static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 		path = build_path(&iter);
 		printf("deleting '%s'\n", path);
 
+		//TODO: recurse into directories
+
 		if (0 != g_unlink(path)) {
 			dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Cannot delete file %s"), path);
 		}
@@ -539,69 +519,6 @@ static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 	}
 
 	g_free(name);
-}
-
-static void
-on_cell_edited(GtkCellRenderer *renderer, const gchar *path_string, const gchar *name_new, gpointer user_data)
-{
-	/*
-	GtkTreeViewColumn *column;
-	GList *renderers;
-	GtkTreeIter iter, iter_parent;
-	gchar *uri, *uri_new, *dirname;
-
-	column 		= gtk_tree_view_get_column(GTK_TREE_VIEW(treeview), 0);
-	renderers 	= gtk_cell_layout_get_cells(GTK_CELL_LAYOUT(column));
-	renderer 	= g_list_nth_data(renderers, TREEBROWSER_RENDER_TEXT);
-	g_list_free(renderers);
-	*/
-
-	printf("edited: %s, %s\n", path_string, name_new);
-	stop_edit_text();
-
-	/*
-	if (gtk_tree_model_get_iter_from_string(GTK_TREE_MODEL(treestore), &iter, path_string))
-	{
-		gtk_tree_model_get(GTK_TREE_MODEL(treestore), &iter, TREEBROWSER_COLUMN_URI, &uri, -1);
-		if (uri)
-		{
-			dirname = g_path_get_dirname(uri);
-			uri_new = g_strconcat(dirname, G_DIR_SEPARATOR_S, name_new, NULL);
-			g_free(dirname);
-			if (!(g_file_test(uri_new, G_FILE_TEST_EXISTS) &&
-				strcmp(uri, uri_new) != 0 &&
-				!dialogs_show_question(_("Target file '%s' exists, do you really want to replace it?"), uri_new)))
-			{
-				if (g_rename(uri, uri_new) == 0)
-				{
-					dirname = g_path_get_dirname(uri_new);
-					gtk_tree_store_set(treestore, &iter,
-									TREEBROWSER_COLUMN_NAME, name_new,
-									TREEBROWSER_COLUMN_URI, uri_new,
-									-1);
-					if (gtk_tree_model_iter_parent(GTK_TREE_MODEL(treestore), &iter_parent, &iter))
-						treebrowser_browse(dirname, &iter_parent);
-					else
-						treebrowser_browse(dirname, NULL);
-					g_free(dirname);
-
-					if (!g_file_test(uri, G_FILE_TEST_IS_DIR))
-					{
-						GeanyDocument *doc = document_find_by_filename(uri);
-						if (doc && document_close(doc))
-							document_open_file(uri_new, FALSE, NULL, NULL);
-					}
-				}
-			}
-			g_free(uri_new);
-			g_free(uri);
-		}
-	}
-	*/
-}
-
-static void on_cell_editing_canceled(GtkCellRenderer *renderer, gpointer user_data) {
-	printf("editing canceled\n");
 }
 
 static void find_file_recursive(GtkTreeIter *iter, gboolean case_sensitive, gboolean full_path, GPatternSpec *pattern)
@@ -1644,8 +1561,6 @@ void prjorg_sidebar_init(void)
 	gtk_tree_view_column_pack_start(column, renderer, TRUE);
 	gtk_tree_view_column_add_attribute(column, renderer, "markup", FILEVIEW_COLUMN_NAME);
 	gtk_tree_view_column_add_attribute(column, renderer, "cell-background-gdk", FILEVIEW_COLUMN_COLOR);
-	g_signal_connect(G_OBJECT(renderer), "edited", G_CALLBACK(on_cell_edited), s_file_view);
-	g_signal_connect(G_OBJECT(renderer), "editing-canceled", G_CALLBACK(on_cell_editing_canceled), s_file_view);
 
 	gtk_tree_view_append_column(GTK_TREE_VIEW(s_file_view), column);
 
