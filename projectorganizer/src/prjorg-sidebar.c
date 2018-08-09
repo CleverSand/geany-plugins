@@ -400,6 +400,7 @@ static void on_create_file(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gp
 		fd = g_open(path, O_CREAT|O_EXCL, 0660); // rw-rw----
 		if (-1 != fd) { // created?
 			g_close(fd, &err);
+			prjorg_project_rescan();
 			prjorg_sidebar_update(TRUE);
 			project_write_config();
 			//TODO: open the new file?
@@ -432,6 +433,7 @@ static void on_create_dir(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpo
 		g_print("new dir: %s", path);
 
 		if (0 == g_mkdir_with_parents(path, 0770)) { // created? (rwxrwx---)
+			prjorg_project_rescan();
 			prjorg_sidebar_update(TRUE);
 			project_write_config();
 			//TODO: select the new dir?
@@ -531,6 +533,7 @@ static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 
 		g_free(path);
 
+		prjorg_project_rescan();
 		prjorg_sidebar_update(TRUE);
 		project_write_config();
 	}
