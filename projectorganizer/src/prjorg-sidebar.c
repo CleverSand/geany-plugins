@@ -394,7 +394,9 @@ static void on_create_file(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gp
 
 	g_print("Creating file in %s\n", dir);
 
-	name = dialogs_show_input(_("New File"), geany->main_widgets->window, _("Name:"), _("newfile.txt"));
+	name = dialogs_show_input(_("New File"), GTK_WINDOW(geany->main_widgets->window),
+		_("Name:"), _("newfile.txt"));
+
 	if (NULL != name)
 	{
 		path = g_build_path(G_DIR_SEPARATOR_S, dir, name, NULL);
@@ -430,7 +432,9 @@ static void on_create_dir(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpo
 
 	g_print("Creating dir in %s\n", dir);
 
-	name = dialogs_show_input(_("New Directory"), geany->main_widgets->window, _("Name:"), _("newdir"));
+	name = dialogs_show_input(_("New Directory"), GTK_WINDOW(geany->main_widgets->window),
+		_("Name:"), _("newdir"));
+
 	if (NULL != name)
 	{
 		path = g_build_path(G_DIR_SEPARATOR_S, dir, name, NULL);
@@ -480,7 +484,9 @@ static void on_rename(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 	gtk_tree_model_get(model, &iter, FILEVIEW_COLUMN_NAME, &name, -1);
 	if (NULL != name)
 	{
-		newname = dialogs_show_input(_("Rename"), geany->main_widgets->window, _("New name:"), name);
+		newname = dialogs_show_input(_("Rename"), GTK_WINDOW(geany->main_widgets->window),
+			_("New name:"), name);
+
 		if (NULL != newname)
 		{
 			oldpath = g_build_path(G_DIR_SEPARATOR_S, dir, name, NULL);
@@ -493,7 +499,8 @@ static void on_rename(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 			}
 			else
 			{
-				dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Cannot rename %s to %s"), oldpath, newpath);
+				dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Cannot rename %s to %s"),
+					oldpath, newpath);
 			}
 			g_free(oldpath);
 			g_free(newpath);
@@ -528,7 +535,7 @@ static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 
 		//TODO: recurse into directories
 
-		if (0 == g_remove(path))
+		if (remove_file_or_dir(path))
 		{
 			close_file(path);
 		}
