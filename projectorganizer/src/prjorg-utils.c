@@ -163,11 +163,11 @@ gboolean rename_file_or_dir(gchar *utf8_oldname, gchar *utf8_newname)
 	GeanyDocument *doc;
 	gchar *oldname;
 	gchar *newname;
-	int res; 
+	int res;
 
 	doc = document_find_by_filename(utf8_oldname);
 	if (doc)
-	{		
+	{
 		return document_rename(doc, utf8_newname);
 	}
 	else
