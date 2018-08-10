@@ -17,10 +17,8 @@
  */
 
 #include <sys/time.h>
-#include <fcntl.h>
 #include <gdk/gdkkeysyms.h>
 #include <string.h>
-//#include <glib/gstdio.h>
 
 #ifdef HAVE_CONFIG_H
 	#include "config.h"
@@ -356,6 +354,7 @@ static void on_remove_external_dir(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_U
 	g_free(name);
 }
 
+
 // returned string must be freed
 static gchar* parent_dir_for_create() 
 {
@@ -382,11 +381,10 @@ static gchar* parent_dir_for_create()
 	return path;
 }
 
+
 static void on_create_file(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointer user_data)
 {
 	gchar *dir, *name, *path;
-	int fd;
-	GError *err;
 
 	dir = parent_dir_for_create();
 	if (NULL == dir) 
@@ -403,17 +401,14 @@ static void on_create_file(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gp
 		g_free(name);
 		g_print("new file: %s", path);
 
-		fd = g_open(path, O_CREAT|O_EXCL, 0660); // rw-rw----
-		if (-1 != fd) // created?
-		{ 
-			g_close(fd, &err);
+		if (create_file(path))
+		{
 			open_file(path);
 			prjorg_project_rescan();
 			prjorg_sidebar_update(TRUE);
 			project_write_config();
-			//TODO: open the new file?
-		} 
-		else 
+		}
+		else
 		{
 			dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Cannot create new file %s"), path);
 		}
@@ -421,6 +416,7 @@ static void on_create_file(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gp
 	}
 	g_free(dir);
 }
+
 
 static void on_create_dir(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointer user_data)
 {
@@ -441,14 +437,13 @@ static void on_create_dir(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpo
 		g_free(name);
 		g_print("new dir: %s", path);
 
-		if (0 == g_mkdir_with_parents(path, 0770)) // created? (rwxrwx---)
+		if (create_dir(path))
 		{
 			prjorg_project_rescan();
 			prjorg_sidebar_update(TRUE);
 			project_write_config();
-			//TODO: select the new dir?
-		} 
-		else 
+		}
+		else
 		{
 			dialogs_show_msgbox(GTK_MESSAGE_ERROR, _("Cannot create directory %s"), path);
 		}
@@ -456,6 +451,7 @@ static void on_create_dir(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpo
 	}
 	g_free(dir);
 }
+
 
 static void on_rename(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointer user_data)
 {
@@ -489,7 +485,7 @@ static void on_rename(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 		{
 			oldpath = g_build_path(G_DIR_SEPARATOR_S, dir, name, NULL);
 			newpath = g_build_path(G_DIR_SEPARATOR_S, dir, newname, NULL);
-			if (rename_file(oldpath, newpath)) 
+			if (rename_file_or_dir(oldpath, newpath))
 			{
 				prjorg_project_rescan();
 				prjorg_sidebar_update(TRUE);
@@ -507,6 +503,7 @@ static void on_rename(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 	}
 	g_free(dir);
 }
+
 
 static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointer user_data)
 {
@@ -549,6 +546,7 @@ static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 
 	g_free(name);
 }
+
 
 static void find_file_recursive(GtkTreeIter *iter, gboolean case_sensitive, gboolean full_path, GPatternSpec *pattern)
 {
