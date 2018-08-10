@@ -531,7 +531,7 @@ static void on_delete(G_GNUC_UNUSED GtkMenuItem *menuitem, G_GNUC_UNUSED gpointe
 
 		//TODO: recurse into directories
 
-		if (0 == g_unlink(path)) 
+		if (0 == g_remove(path)) 
 		{
 			close_file(path);
 		} 
