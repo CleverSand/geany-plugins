@@ -20,7 +20,7 @@
 #include <fcntl.h>
 #include <gdk/gdkkeysyms.h>
 #include <string.h>
-#include <glib/gstdio.h>
+//#include <glib/gstdio.h>
 
 #ifdef HAVE_CONFIG_H
 	#include "config.h"
